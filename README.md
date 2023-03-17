@@ -122,4 +122,72 @@ Se juntan los partidos con sus equipos locales, seleccionando sólo aquellos par
 
 # Ejercicios de invención propia
 
+## 1. Esquema **padremadre**: Listar parejas de primos:
+```sql
+SELECT PRIMO1.NOMBRE AS PRIMO1,PRIMO2.NOMBRE AS PRIMO2,
+       PADRE1.NOMBRE AS PADRE1, PADRE2.NOMBRE AS PADRE2, ABUELO.NOMBRE AS ABUELO
+FROM PERSONAS PRIMO1
+JOIN PERSONAS PADRE1 ON (PRIMO1.N_PADRE=PADRE1.N_PERSONA)
+JOIN PERSONAS PADRE2 ON (PADRE1.N_PADRE=PADRE2.N_PADRE)
+JOIN PERSONAS PRIMO2 ON (PRIMO2.N_PADRE=PADRE2.N_PERSONA)
+JOIN PERSONAS ABUELO ON (PADRE1.N_PADRE=ABUELO.N_PERSONA)
+WHERE PADRE1.N_PERSONA!=PADRE2.N_PERSONA AND PRIMO1.N_PERSONA>PRIMO2.N_PERSONA;
+```
+
+Así la consulta muestra parejas de primos y primas, así como sus padres y su abuelo común, pero sólo aquellos relacionados patrilinealmente.
+![Parejas de primos](imgs/parejasprimos.png)
+
+También he hecho una variación de esta consulta, que muestra el número de primos que tiene cada persona (hay que prestar atención a las comparaciones de `N_PERSONA` en el `WHERE`):
+```sql
+SELECT PRIMO1.NOMBRE AS PERSONA, COUNT(*) AS N_PRIMOS
+FROM PERSONAS PRIMO1
+JOIN PERSONAS PADRE1 ON (PRIMO1.N_PADRE=PADRE1.N_PERSONA)
+JOIN PERSONAS PADRE2 ON (PADRE1.N_PADRE=PADRE2.N_PADRE)
+JOIN PERSONAS PRIMO2 ON (PRIMO2.N_PADRE=PADRE2.N_PERSONA)
+WHERE PADRE1.N_PERSONA!=PADRE2.N_PERSONA AND PRIMO1.N_PERSONA!=PRIMO2.N_PERSONA
+GROUP BY PRIMO1.N_PERSONA, PRIMO1.NOMBRE;
+```
+![Cantidad de primos](imgs/cantidadprimos.png)
+
+## 2. Esquema **geografia**: Mostrar localidades cuya población es mayor que el resto de las localidades de su provincia combinadas:
+```sql
+SELECT L1.NOMBRE, L1.POBLACION, SUM(L2.POBLACION) AS POBLACION_RESTO_PROVINCIA
+FROM LOCALIDADES L1
+JOIN LOCALIDADES L2 USING (N_PROVINCIA)
+WHERE L1.ID_LOCALIDAD!=L2.ID_LOCALIDAD
+GROUP BY L1.NOMBRE, L1.POBLACION, L1.ID_LOCALIDAD
+HAVING SUM(L2.POBLACION)<L1.POBLACION;
+```
+Muestra el nombre y la población de cada localidad que tenga más población que el resto de su provincia, así como dicha población.
+![Resultado de la consulta de localidades](imgs/localidades.png)
+
+## 3. EXTRA: Mi propia base de datos
+Debajo se puede ver el diagrama de una base de datos que he diseñado. Es bastante simple, teniendo dos tablas, ya que fue diseñada con un propósito muy específico: guardar información de los jugadores de un servidor de Minecraft en el que juego con mis amigos.
+
+Minecraft es un juego en 3D, por lo que la tabla de posiciones tiene 3 atributos, uno por cada componente del vector posición.
+
+La forma de poblar esta tabla ha sido mediante un script en Python que se ejecuta cada cierto tiempo (en mis pruebas fue cada 10 segundos), que usaría el protcolo [RCON](https://wiki.vg/RCON), que permite ejecutar comandos en el servidor de forma remota, para pedir la información necesaria con el comando `/data get entity {player} Pos`.
+![Diagrama de base de datos de posiciones de jugadores en Minecraft](imgs/minecraft_diagrama.png)
+
+La idea de esta base de datos es llevar un seguimiento de por dónde se mueven los jugadores, para luego presentar esta información de alguna forma gráfica, como un mapa de calor, o mostrando el camino tomado por cada jugador.
+
+Se me ocurren varias consultas que se podrían hacer, como por ejemplo:
+- Mostrar la distancia media al origen de coordenadas de cada jugador
+```sql
+SELECT nombre_jugador, AVG(DISTANCE)
+FROM (
+  SELECT id_jugador, SQRT(POWER(pos_x,2)+POWER(pos_y,2)+POWER(pos_z,2)) AS DISTANCE
+  FROM posiciones
+)
+-- se podría añadir WHERE para filtrar posiciones dependiendo del timestamp, o sólo ciertos jugadores
+JOIN jugadores USING (id_jugador)
+GROUP BY id_jugador
+-- se podría usar HAVING para obtener sólo las distancias medias mayores que cierto valor
+```
+
+NOTA: la base de datos originalmente fue diseñada en SQLite. Esto es una representación de cómo se usaría si estuviera en Oracle SQL.
 # Conclusiones
+
+Me está resultando muy interesante descubrir todas las posibilidades que ofrecen las bases de datos en cuanto a la manipulación de los datos para mostrarlos como uno quiera.
+
+La mayor dificultad de estas unidades ha sido los `JOIN` más difíciles que han salido en los ejercicios de alto nivel; me es complicado ver exactamente cuál sería la mejor forma de hacerlo, con lo que suelo recurrir a `CROSS JOIN` o cosas por el estilo.
